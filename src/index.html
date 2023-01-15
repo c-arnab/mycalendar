@@ -4,14 +4,136 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="styles.css">
-  <title>Vanilla JavaScript App</title>
+  <script src="daypilot-all.min.js"></script>
+  <title>My Calendar</title>
 </head>
 
 <body>
   <main>
-    <h1>Vanilla JavaScript App</h1>
+    <h1>My Calendar</h1>
+    <p>
+    <div id="login" style="display: flex; justify-content: end;"><a href="/.auth/login/github">Login</a></div>
   </main>
+
+  <div id="mycalendar"></div>
+
+  <script type="text/javascript">
+    const mycalendar = new DayPilot.Month("mycalendar", {
+        startDate: "2023-01-01",
+        onTimeRangeSelected: async function (args) {
+
+            const colors = [
+                {name: "Blue", id: "#3c78d8"},
+                {name: "Green", id: "#6aa84f"},
+                {name: "Yellow", id: "#f1c232"},
+                {name: "Red", id: "#cc0000"},
+            ];
+
+            const form = [
+                {name: "Text", id: "text"},
+                {name: "Start", id: "start", type: "datetime"},
+                {name: "End", id: "end", type: "datetime"},
+                {name: "Color", id: "barColor", options: colors}
+            ];
+
+            const data = {
+                text: "Event",
+                start: args.start,
+                end: args.end,
+                barColor: "#6aa84f"
+            };
+            const modal = await DayPilot.Modal.form(form, data);
+
+            mycalendar.clearSelection();
+
+            if (modal.canceled) {
+                return;
+            }
+            app.getUserInfo()
+            .then(user =>{
+              console.log(user); 
+              if (user !=null){
+                const event = {
+                  start: modal.result.start,
+                  end: modal.result.end,
+                  text: modal.result.text,
+                  barColor: modal.result.barColor
+                };
+                app.addEvents(user,event);  
+              }
+            })
+
+        }
+    });
+
+
+  mycalendar.init();
+
+  const app = {
+    loadEvents(user) {
+      console.log(user);
+      var url = new URL('/api/events')
+      var params = {u:user}
+      url.search = new URLSearchParams(params).toString();
+      //console.log(url);
+      fetch(url)
+        .then(response =>{
+          return response.json();
+        }).then(data =>{
+          //console.log(data);
+          mycalendar.update({
+            events: data
+          });
+        })                       
+    },
+    addEvents(user,event){
+      fetch('/api/events', {
+              method: 'POST',
+              headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                cuser:user,
+                cevent:event,
+              }),
+          })
+          .then(response =>{
+            console.log(response);
+          return response.json();
+          }).then(data =>{
+            console.log(data);
+            mycalendar.events.add(data);
+          }) 
+    },
+    getUserInfo() {
+    return fetch('/.auth/me')
+      .then(response =>{
+          return response.json();
+        }).then(data =>{
+          const { clientPrincipal } = data;
+          console.log(clientPrincipal);
+          if (clientPrincipal !=null){
+            console.log("inside clientprincipal not null");
+            const userDetails= clientPrincipal.userDetails;
+            return userDetails;
+          }
+          return null;
+        })
+    },
+    init(){
+      app.getUserInfo()
+          .then(user =>{
+           console.log(user); 
+           if (user !=null){
+            document.getElementById("login").style.display = "none";
+            app.loadEvents(user);  
+            }
+          })
+    }
+  };
+  app.init();
+</script>
 </body>
 
 </html>
